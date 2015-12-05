@@ -8,7 +8,15 @@ var scores = {};
 var names = {};
 var state = {};
 
+var mode = {
+	STARTED: 0,		// trivia has been started
+	ACTIVE: 1,		// active round of trivia (there is a current clue)
+	INACTIVE: 2,	// trivia has started but there is no active clue
+	STOPPED: 3		// trivia has been stopped
+};
+
 var vowelThreshold = 0.4;
+var resetDelay = 3000;
 
 var addon = app.addon()
 	.hipchat()
@@ -22,7 +30,13 @@ if (process.env.DEV_KEY) {
 function* reset() {
 	var clueFn = generateClue.bind(this);
 	state.answer = state.parsedAnswer = state.value = null;
-	yield* clueFn();
+	if (state.mode != mode.STOPPED) {
+		state.mode = mode.INACTIVE;
+		yield function (cb) {
+			setTimeout(cb, resetDelay);
+		};
+		yield* clueFn();
+	}
 }
 
 function* api(endpoint, params) {
@@ -48,13 +62,14 @@ function* generateClue() {
 	clue = payload[0];
 
 	if (clue && clue.answer) { // clue request
-		if (state.answer) this.roomClient.sendNotification('Previous answer: ' + state.answer);
+		if (state.mode == mode.ACTIVE) this.roomClient.sendNotification('Previous answer: ' + state.answer);
 
 		category = clue.category && clue.category.title;
 		question = clue.question;
 		state.answer = clue.answer;
 		state.value = clue.value;
 		state.parsedAnswer = scrubAnswer(state.answer);
+		state.mode = mode.ACTIVE;
 
 		this.roomClient.sendNotification((category ? '[<b>' + category.toUpperCase() + '</b> for <em>$' + clue.value + '</em>]<br />' : '') + question);
 	}
@@ -70,7 +85,7 @@ function* checkAnswer(guess) {
 		arrGuess, arrAnswer,
 		idx, resetFn;
 
-	if (state.answer) {
+	if (state.mode == mode.ACTIVE) {
 		scrubbedGuess = scrubAnswer(guess);
 		vowels = scrubbedGuess.match(/[aeiuo]/gi);
 		correct = false;
@@ -114,7 +129,7 @@ function* checkAnswer(guess) {
 }
 
 addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, function *() {
-	var mode = this.match[1],
+	var slash = this.match[1],
 		args = this.match[2],
 		endpoint = '',
 		params = '',
@@ -124,7 +139,7 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 		id, idx,
 		payload, catInfo;
 
-	switch (mode) {
+	switch (slash) {
 		case 'a':
 		case 'ans':
 		case 'answer':
@@ -210,9 +225,20 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 						}
 						yield this.roomClient.sendNotification(msg);
 						break;
+					case 'stop':
+					case 'quit':
+					case 'q':
+					case 'end':
+						state.mode = mode.STOPPED;
+						yield this.roomClient.sendNotification('No more trivia!');
+						resetFn = reset.bind(this);
+						yield* resetFn();
+						break;
 				}
 			} else {
-				if (!state.answer) {
+				if (typeof state.mode === 'undefined' || state.mode == mode.INACTIVE) {
+					yield this.roomClient.sendNotification('Trivia...HAS BEGUN!');
+					state.mode = mode.STARTED;
 					clueFn = generateClue.bind(this);
 					yield* clueFn();
 				}
