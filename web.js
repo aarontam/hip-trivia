@@ -207,6 +207,7 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 															+  'To set the current category (using a previously listed category): <b>/trivia category [category title]</b>' + '<br />'
 															+  'To reveal the current answer (don\'t spoil it for others!): <b>/trivia uncle</b>' + '<br />'
 															+  'To see the leaderboard: <b>/trivia standings</b>' + '<br />'
+															+  'To stop playing trivia: <b>/trivia stop</b>' + '<br />'
 															+  'A new trivia question will appear shortly after the previous question is answered correctly, or when the room gives up.');
 						break;
 					case 'standings':
