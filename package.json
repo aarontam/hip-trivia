@@ -1,0 +1,33 @@
+{
+  "name": "hip-trivia",
+  "displayName": "Hip Trivia",
+  "description": "Trivia for HipChat",
+  "version": "0.1.0",
+  "author": {
+    "name": "Aaron Tam",
+    "url": "https://github.com/aarontam/hip-trivia"
+  },
+  "license": "Apache 2.0",
+  "engines": {
+    "node": "^0.12.7"
+  },
+  "scripts": {
+    "web": "node --harmony web.js",
+    "web-dev": "nodemon --harmony -e js,json,css,hbs web.js",
+    "tunnel": "./ngrok http 3000"
+  },
+  "development": {
+    "localBaseUrl" : "https://a0039d4d.ngrok.io",
+    "port": 3000
+  },
+  "production": {
+    "localBaseUrl": "https://my-addon.anypaas.com",
+    "redisEnv": "REDISCLOUD_URL",
+    "port": "$PORT"
+  },
+  "dependencies": {
+    "ac-koa": "^0.2.6",
+    "ac-koa-hipchat": "^0.2.14",
+    "co-request": "^0.2.0"
+  }
+}
