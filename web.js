@@ -15,6 +15,39 @@ var mode = {
 	STOPPED: 3		// trivia has been stopped
 };
 
+var feedbackMsgs = [
+	'Try again!',
+	'Ooh, that\'s the answer to another one, but no.',
+	'Bzzzzt!',
+	'You wish!',
+	'Survey says... "no!"',
+	'Outlook hazy, please try again.',
+	'Hahaha... hahahaha... no.',
+	'Womp, womp.',
+	'I used to think that, but I can see the answers.',
+	'Not only no, hell no.',
+	'Don\'t bet on it.',
+	'What\'s another word for wrong?',
+	'Incorrect.',
+	'No way!',
+	'Keep at it...',
+	'No, no, no, no.',
+	'Nyet!',
+	'You\'re only one right answer away from getting this!',
+	'I think not.',
+	'👎',
+	'Nope.',
+	'❌',
+	'I like your answer, even though it\'s wrong',
+	'What is \'wrong answer\'?',
+	'"Wrong Answers" for $1000',
+	'Suck it, Trebek!',
+	'Ask a 5th grader.',
+	'All signs point to, "no."',
+	'Did you even read the question?',
+	'No penalty for guessing!'
+];
+
 var vowelThreshold = 0.4;
 var resetDelay = 3000;
 
@@ -35,7 +68,7 @@ function* reset() {
 		yield function (cb) {
 			setTimeout(cb, resetDelay);
 		};
-		yield* clueFn();
+		if (state.mode != mode.ACTIVE) yield* clueFn();
 	}
 }
 
@@ -67,7 +100,7 @@ function* generateClue() {
 		category = clue.category && clue.category.title;
 		question = clue.question;
 		state.answer = clue.answer;
-		state.value = clue.value;
+		state.value = clue.value || '500';
 		state.parsedAnswer = scrubAnswer(state.answer);
 		state.mode = mode.ACTIVE;
 
@@ -76,17 +109,18 @@ function* generateClue() {
 }
 
 function scrubAnswer(answer) {
-	return answer.replace(/((^|\s+)(a|an|and|the|&)(\s+))|(\(.*\))|(<\/?i>)|(\u003C\/?i\u003E)/gi, '').replace(/[\s.,-\/#!$%\^&\*;:{}=\-_`~"\'\\()?!]/g, '').toUpperCase();
+	return answer.replace(/((^|\s*)(a|an|and|the|&)(\s+))|(\(.*\))|(<\/?i>)|(\u003C\/?i\u003E)/gi, '').replace(/[\s.,-\/#!$%\^&\*;:{}=\-_`~"\'\\()?!]/g, '').toUpperCase();
 }
 
 function* checkAnswer(guess) {
 	var scrubbedGuess, vowels, correct,
 		matchesGuess, matchesAnswer,
 		arrGuess, arrAnswer,
-		idx, resetFn;
+		feedbackIdx, idx, resetFn;
 
 	if (state.mode == mode.ACTIVE) {
 		scrubbedGuess = scrubAnswer(guess);
+
 		vowels = scrubbedGuess.match(/[aeiuo]/gi);
 		correct = false;
 
@@ -121,7 +155,12 @@ function* checkAnswer(guess) {
 			resetFn = reset.bind(this);
 			yield* resetFn();
 		} else {
-			yield this.roomClient.sendNotification('Womp womp, ' + this.sender.name);
+			if (state.parsedAnswer.indexOf(scrubbedGuess) > -1 || scrubbedGuess.indexOf(state.parsedAnswer) > -1) {
+				yield this.roomClient.sendNotification(this.sender.name + ': <b>Almost!</b> Try adjusting your answer slightly');
+				return;
+			}
+			feedbackIdx = Math.floor(Math.random()*feedbackMsgs.length);
+			yield this.roomClient.sendNotification(this.sender.name + ': ' + feedbackMsgs[feedbackIdx]);
 		}
 	} else {
 		yield this.roomClient.sendNotification('Whoops! Too late, ' + this.sender.name);
@@ -160,7 +199,7 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 					case 'a':
 					case 'answer':
 						checkFn = checkAnswer.bind(this);
-						checkFn(option);
+						yield* checkFn(option);
 						break;
 					case 'c':
 					case 'cat':
