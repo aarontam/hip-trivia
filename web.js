@@ -38,14 +38,15 @@ var feedbackMsgs = [
 	'👎',
 	'Nope.',
 	'❌',
-	'I like your answer, even though it\'s wrong',
-	'What is \'wrong answer\'?',
+	'I like your answer, even though it\'s wrong.',
+	'What is "wrong answer?"',
 	'"Wrong Answers" for $1000',
 	'Suck it, Trebek!',
 	'Ask a 5th grader.',
-	'All signs point to, "no."',
+	'All signs point to "no."',
 	'Did you even read the question?',
-	'No penalty for guessing!'/*,
+	'No penalty for guessing!',
+	'What is "on" spelled backwards?'/*,
 	'(thumbsdown)',
 	'(failed)',
 	'(areyouserious)',
@@ -56,7 +57,7 @@ var feedbackMsgs = [
 ];
 
 var vowelThreshold = 0.4;
-var resetDelay = 3000;
+var resetDelay = 5000;
 var defaultValue = 500;
 
 var addon = app.addon()
@@ -91,6 +92,8 @@ function* api(endpoint, params) {
 function* generateClue() {
 	var endpoint, params, payload, clue, category, question, value;
 
+	state.mode = mode.ACTIVE;
+
 	if (state.categoryId) {
 		endpoint = 'clues';
 		params = 'category=' + state.categoryId + '&offset=' + Math.floor(Math.random()*state.cluesCount);
@@ -103,8 +106,6 @@ function* generateClue() {
 	clue = payload[0];
 
 	if (clue && clue.answer) { // clue request
-		if (state.mode == mode.ACTIVE) this.roomClient.sendNotification('Previous answer: ' + state.answer);
-
 		category = clue.category && clue.category.title;
 		question = clue.question;
 		value = parseInt(clue.value, 10);
@@ -112,11 +113,12 @@ function* generateClue() {
 		state.answer = decodeURI(clue.answer);
 		state.value = (isNaN(value) || !value) ? defaultValue : value;
 		state.parsedAnswer = scrubAnswer(state.answer);
-		state.mode = mode.ACTIVE;
 
 		this.roomClient.sendNotification((category ? '[<b>' + decodeURI(category.toUpperCase()) + '</b> for <em>$' + clue.value + '</em>]<br />' : '') + decodeURI(question), {
 			notify: true
 		});
+	} else {
+		state.mode = mode.INACTIVE;
 	}
 }
 
@@ -124,38 +126,55 @@ function scrubAnswer(answer) {
 	return latinize(answer).replace(/((^|\s*)(a|an|and|the|&)(\s+))|(\(.*\))|(<\/?i>)|(\u003C\/?i\u003E)/gi, '').replace(/[\s.,-\/#!$%\^&\*;:{}=\-_`~"\'\\()?!]/g, '').toUpperCase();
 }
 
+function checkBySorting(guess, answer) {
+	var correct = true,
+		arrGuess, arrAnswer,
+		idx;
+
+	if (guess.length == answer.length) {
+		arrGuess = guess.split('');
+		arrAnswer = answer.split('');
+		correct = true;
+		for (idx = 0; idx < arrGuess.length; idx++) {
+			if (arrGuess[idx] != arrAnswer[idx]) {
+				correct = false;
+				break;
+			}
+		}
+	}
+
+	return correct;
+}
+
 function* checkAnswer(guess) {
 	var scrubbedGuess, vowels, correct,
 		matchesGuess, matchesAnswer,
-		arrGuess, arrAnswer,
-		feedbackIdx, idx, resetFn;
+		feedbackIdx, resetFn;
 
 	if (state.mode == mode.ACTIVE) {
-		scrubbedGuess = scrubAnswer(guess);
-
-		vowels = scrubbedGuess.match(/[aeiuo]/gi);
 		correct = false;
 
-		if (vowels && vowels.count / scrubbedGuess.length < vowelThreshold) { // compare only consonants
-			matchesGuess = scrubbedGuess.match(/[^aeiuo]/gi);
-			matchesAnswer = state.parsedAnswer.match(/[^aeiuo]/gi);
+		if (guess) {
+			scrubbedGuess = scrubAnswer(guess);
+			vowels = scrubbedGuess.match(/[aeiuo]/gi);
 
-			if (matchesGuess && matchesAnswer) {
-				matchesGuess = matchesGuess.join('');
-				matchesAnswer = matchesAnswer.join('');
-				correct = matchesGuess == matchesAnswer;
-			}
-		} else { // sort by characters and compare
-			if (scrubbedGuess.length == state.parsedAnswer.length) {
-				arrGuess = scrubbedGuess.split('');
-				arrAnswer = state.parsedAnswer.split('');
+			if (scrubbedGuess.indexOf(state.parsedAnswer) > -1) { // if guess contains the answer (close enough for our purposes)
 				correct = true;
-				for (idx = 0; idx < arrGuess.length; idx++) {
-					if (arrGuess[idx] != arrAnswer[idx]) {
-						correct = false;
-						break;
+			} else if (vowels && vowels.count / scrubbedGuess.length < vowelThreshold) { // compare only consonants
+				matchesGuess = scrubbedGuess.match(/[^aeiuo]/gi);
+				matchesAnswer = state.parsedAnswer.match(/[^aeiuo]/gi);
+
+				if (matchesGuess && matchesAnswer) {
+					matchesGuess = matchesGuess.join('');
+					matchesAnswer = matchesAnswer.join('');
+					correct = matchesGuess == matchesAnswer;
+
+					if (!correct) {
+						correct = checkBySorting(scrubbedGuess, state.parsedAnswer);
 					}
 				}
+			} else { // sort by characters and compare
+				correct = checkBySorting(scrubbedGuess, state.parsedAnswer);
 			}
 		}
 
@@ -163,12 +182,12 @@ function* checkAnswer(guess) {
 			scores[this.sender.id] = (scores[this.sender.id] ? scores[this.sender.id] : 0) + state.value;
 			names[this.sender.id] = this.sender.name;
 			yield this.roomClient.sendNotification(this.sender.name + ' is correct! Current winnings: $' + scores[this.sender.id] + '<br />'
-											+ 'Answer: <b>' + state.answer + '</b>', {notify: true, color: 'green'});
+											+ 'Answer: <b>' + decodeURI(state.answer) + '</b>', {notify: true, color: 'green'});
 			resetFn = reset.bind(this);
 			yield* resetFn();
 		} else {
-			if (state.parsedAnswer.indexOf(scrubbedGuess) > -1 || scrubbedGuess.indexOf(state.parsedAnswer) > -1) {
-				yield this.roomClient.sendNotification(this.sender.name + ': <b>Almost!</b> Try adjusting your answer slightly', {
+			if (scrubbedGuess && state.parsedAnswer.indexOf(scrubbedGuess) > -1) {
+				yield this.roomClient.sendNotification(this.sender.name + ': <b>Almost!</b> Try adjusting your answer slightly.', {
 					color: 'gray'
 				});
 				return;
@@ -180,7 +199,7 @@ function* checkAnswer(guess) {
 			});
 		}
 	} else {
-		yield this.roomClient.sendNotification('Whoops! Too late, ' + this.sender.name, {
+		yield this.roomClient.sendNotification('Whoops! Too late, ' + this.sender.name + '.', {
 			color: 'red'
 		});
 	}
@@ -253,14 +272,14 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 						break;
 					case 'uncle':
 					case 'giveup':
-						yield this.roomClient.sendNotification('Answer: ' + state.answer);
+						yield this.roomClient.sendNotification('Answer: ' + decodeURI(state.answer));
 						resetFn = reset.bind(this);
 						yield* resetFn();
 						break;
 					case 'help':
 					case '?':
-						yield this.roomClient.sendNotification('To ask a new question: <b>/trivia</b>' + '<br />'
-															+  'To answer a question: <b>/answer [your answer]</b>' + '<br />'
+						yield this.roomClient.sendNotification('To ask a new question: <b>/t[rivia]</b>' + '<br />'
+															+  'To answer a question: <b>/a[nswer] &lt;your answer&gt;</b>' + '<br />'
 															+  'To list 10 (random) categories: <b>/trivia categories</b>' + '<br />'
 															+  'To set the current category (using a previously listed category): <b>/trivia category [category title]</b>' + '<br />'
 															+  'To reveal the current answer (don\'t spoil it for others!): <b>/trivia uncle</b>' + '<br />'
@@ -280,7 +299,7 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 						winnings = Object.keys(scores).sort(function (a,b) { return scores[b] - scores[a]; });
 						for (idx = 0; idx < winnings.length; idx++) {
 							id = winnings[idx];
-							msg += names[id] + ': $' + scores[id] + '<br />';
+							msg += '$' + scores[id] + ': ' + names[id] + '<br />';
 						}
 						yield this.roomClient.sendNotification(msg);
 						break;
@@ -288,6 +307,7 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 					case 'quit':
 					case 'q':
 					case 'end':
+					case 'pause':
 						state.mode = mode.STOPPED;
 						yield this.roomClient.sendNotification('No more trivia!');
 						resetFn = reset.bind(this);
