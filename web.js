@@ -41,7 +41,6 @@ var feedbackMsgs = [
 	'I like your answer, even though it\'s wrong.',
 	'What is "wrong answer?"',
 	'"Wrong Answers" for $1000',
-	'Suck it, Trebek!',
 	'Ask a 5th grader.',
 	'All signs point to "no."',
 	'Did you even read the question?',
@@ -90,7 +89,8 @@ function* api(endpoint, params) {
 }
 
 function* generateClue() {
-	var endpoint, params, payload, clue, category, question, value;
+	var clue = {},
+		endpoint, params, payload, category, question, value;
 
 	state.mode = mode.ACTIVE;
 
@@ -102,25 +102,25 @@ function* generateClue() {
 		params = 'count=1';
 	}
 
-	payload = yield* api(endpoint, params);
-	clue = payload[0];
-
-	if (clue && clue.answer) { // clue request
-		category = clue.category && clue.category.title;
-		question = unescape(clue.question);
-		value = parseInt(clue.value, 10);
-
-		state.answer = unescape(clue.answer);
-		state.value = (isNaN(value) || !value) ? defaultValue : value;
-		state.parsedAnswer = scrubAnswer(state.answer);
-
-		yield this.roomClient.setRoomTopic(question);
-		yield this.roomClient.sendNotification((category ? '[<b>' + unescape(category.toUpperCase()) + '</b> for <em>$' + state.value + '</em>]<br />' : '') + question, {
-			notify: true
-		});
-	} else {
-		state.mode = mode.INACTIVE;
+	while (clue && (!clue.question || !clue.answer || clue.question.indexOf('>here<') > -1 || clue.question.indexOf(' here') > -1)) {
+		payload = yield* api(endpoint, params);
+		clue = payload[0];
 	}
+
+	category = clue.category && clue.category.title;
+	question = clue.question.replace('\\', '');
+	value = parseInt(clue.value, 10);
+
+	if (category) cats[category] = {id: clue.category.id, count: clue.category.clues_count};
+
+	state.answer = clue.answer.replace('\\', '');
+	state.value = (isNaN(value) || !value) ? defaultValue : value;
+	state.parsedAnswer = scrubAnswer(state.answer);
+
+	yield this.roomClient.setRoomTopic(question);
+	yield this.roomClient.sendNotification((category ? '[<b>' + category.toUpperCase().replace('\\', '') + '</b> for <em>$' + state.value + '</em>]<br />' : '') + question, {
+		notify: true
+	});
 }
 
 function scrubAnswer(answer) {
@@ -207,15 +207,26 @@ function* checkAnswer(guess) {
 	}
 }
 
+function* showWinnings() {
+	var msg = '<b>Leaderboard</b><br />',
+		winnings, id, idx;
+
+	winnings = Object.keys(scores).sort(function (a,b) { return scores[b] - scores[a]; });
+	for (idx = 0; idx < winnings.length; idx++) {
+		id = winnings[idx];
+		msg += '$' + scores[id] + ': ' + names[id] + '<br />';
+	}
+	yield this.roomClient.sendNotification(msg);
+}
+
 addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, function *() {
 	var slash = this.match[1],
 		args = this.match[2],
 		endpoint = '',
 		params = '',
-		checkFn, clueFn, resetFn,
+		checkFn, clueFn, resetFn, winningsFn,
 		command, option,
-		winnings, msg,
-		id, idx,
+		msg, idx,
 		payload, catInfo;
 
 	switch (slash) {
@@ -297,13 +308,15 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 					case 'leaders':
 					case 'leaderboard':
 					case 'results':
-						msg = '<b>Leaderboard</b><br />';
+						/*msg = '<b>Leaderboard</b><br />';
 						winnings = Object.keys(scores).sort(function (a,b) { return scores[b] - scores[a]; });
 						for (idx = 0; idx < winnings.length; idx++) {
 							id = winnings[idx];
 							msg += '$' + scores[id] + ': ' + names[id] + '<br />';
 						}
-						yield this.roomClient.sendNotification(msg);
+						yield this.roomClient.sendNotification(msg);*/
+						winningsFn = showWinnings.bind(this);
+						yield* winningsFn();
 						break;
 					case 'stop':
 					case 'quit':
@@ -312,8 +325,12 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 					case 'pause':
 						state.mode = mode.STOPPED;
 						yield this.roomClient.sendNotification('No more trivia!');
+
+						winningsFn = showWinnings.bind(this);
+						yield* winningsFn();
 						resetFn = reset.bind(this);
 						yield* resetFn();
+
 						break;
 				}
 			} else {
