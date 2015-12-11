@@ -63,7 +63,7 @@ var defaultValue = 500;
 var addon = app.addon()
 	.hipchat()
 	.allowRoom(true)
-	.scopes('send_notification');
+	.scopes('send_notification', 'admin_room');
 
 if (process.env.DEV_KEY) {
 	addon.key(process.env.DEV_KEY);
@@ -107,14 +107,15 @@ function* generateClue() {
 
 	if (clue && clue.answer) { // clue request
 		category = clue.category && clue.category.title;
-		question = clue.question;
+		question = unescape(clue.question);
 		value = parseInt(clue.value, 10);
 
-		state.answer = decodeURI(clue.answer);
+		state.answer = unescape(clue.answer);
 		state.value = (isNaN(value) || !value) ? defaultValue : value;
 		state.parsedAnswer = scrubAnswer(state.answer);
 
-		this.roomClient.sendNotification((category ? '[<b>' + decodeURI(category.toUpperCase()) + '</b> for <em>$' + clue.value + '</em>]<br />' : '') + decodeURI(question), {
+		yield this.roomClient.setRoomTopic(question);
+		yield this.roomClient.sendNotification((category ? '[<b>' + unescape(category.toUpperCase()) + '</b> for <em>$' + state.value + '</em>]<br />' : '') + question, {
 			notify: true
 		});
 	} else {
@@ -123,7 +124,7 @@ function* generateClue() {
 }
 
 function scrubAnswer(answer) {
-	return latinize(answer).replace(/((^|\s*)(a|an|and|the|&)(\s+))|(\(.*\))|(<\/?i>)|(\u003C\/?i\u003E)/gi, '').replace(/[\s.,-\/#!$%\^&\*;:{}=\-_`~"\'\\()?!]/g, '').toUpperCase();
+	return latinize(answer).replace(/((^|\s*)(a|an|and|the|&|or)(\s+))|(\(.*\))|(<\/?i>)|(\u003C\/?i\u003E)/gi, '').replace(/[\s.,-\/#!$%\^&\*;:{}=\-_`~"\'\\()?!]/g, '').toUpperCase();
 }
 
 function checkBySorting(guess, answer) {
@@ -131,16 +132,17 @@ function checkBySorting(guess, answer) {
 		arrGuess, arrAnswer,
 		idx;
 
-	if (guess.length == answer.length) {
+	if (guess && answer && guess.length == answer.length) {
 		arrGuess = guess.split('');
 		arrAnswer = answer.split('');
-		correct = true;
 		for (idx = 0; idx < arrGuess.length; idx++) {
 			if (arrGuess[idx] != arrAnswer[idx]) {
 				correct = false;
 				break;
 			}
 		}
+	} else {
+		correct = false;
 	}
 
 	return correct;
@@ -182,11 +184,11 @@ function* checkAnswer(guess) {
 			scores[this.sender.id] = (scores[this.sender.id] ? scores[this.sender.id] : 0) + state.value;
 			names[this.sender.id] = this.sender.name;
 			yield this.roomClient.sendNotification(this.sender.name + ' is correct! Current winnings: $' + scores[this.sender.id] + '<br />'
-											+ 'Answer: <b>' + decodeURI(state.answer) + '</b>', {notify: true, color: 'green'});
+											+ 'Answer: <b>' + state.answer + '</b>', {notify: true, color: 'green'});
 			resetFn = reset.bind(this);
 			yield* resetFn();
 		} else {
-			if (scrubbedGuess && state.parsedAnswer.indexOf(scrubbedGuess) > -1) {
+			if (scrubbedGuess && state.parsedAnswer && state.parsedAnswer.indexOf(scrubbedGuess) > -1) {
 				yield this.roomClient.sendNotification(this.sender.name + ': <b>Almost!</b> Try adjusting your answer slightly.', {
 					color: 'gray'
 				});
@@ -272,7 +274,7 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 						break;
 					case 'uncle':
 					case 'giveup':
-						yield this.roomClient.sendNotification('Answer: ' + decodeURI(state.answer));
+						yield this.roomClient.sendNotification('Answer: ' + state.answer);
 						resetFn = reset.bind(this);
 						yield* resetFn();
 						break;
@@ -316,7 +318,7 @@ addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, fun
 				}
 			} else {
 				if (typeof state.mode === 'undefined' || state.mode == mode.STOPPED) {
-					yield this.roomClient.sendNotification('Trivia...HAS BEGUN!');
+					yield this.roomClient.sendNotification('Trivia... HAS BEGUN!');
 					state.mode = mode.STARTED;
 					clueFn = generateClue.bind(this);
 					yield* clueFn();
