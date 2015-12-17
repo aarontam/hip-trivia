@@ -7,6 +7,7 @@ var cats = {};
 var scores = {};
 var names = {};
 var state = {};
+var records = {};
 
 var mode = {
 	STARTED: 0,		// trivia has been started
@@ -45,7 +46,9 @@ var feedbackMsgs = [
 	'All signs point to "no."',
 	'Did you even read the question?',
 	'No penalty for guessing!',
-	'What is "on" spelled backwards?'/*,
+	'What is "on" spelled backwards?',
+	'It\'d be nice to hear a right answer from you occasionally.',
+	'Ouch.'/*,
 	'(thumbsdown)',
 	'(failed)',
 	'(areyouserious)',
@@ -55,9 +58,11 @@ var feedbackMsgs = [
 	'(hahaha)'*/
 ];
 
+var countQuestions = 0;
 var vowelThreshold = 0.4;
 var resetDelay = 5000;
 var defaultValue = 500;
+var incorrectWeight = 0.05;
 
 var addon = app.addon()
 	.hipchat()
@@ -117,7 +122,9 @@ function* generateClue() {
 	state.value = (isNaN(value) || !value) ? defaultValue : value;
 	state.parsedAnswer = scrubAnswer(state.answer);
 
-	yield this.roomClient.setRoomTopic(question);
+	countQuestions++;
+
+	// yield this.roomClient.setRoomTopic(question);
 	yield this.roomClient.sendNotification((category ? '[<b>' + category.toUpperCase().replace('\\', '') + '</b> for <em>$' + state.value + '</em>]<br />' : '') + question, {
 		notify: true
 	});
@@ -151,7 +158,8 @@ function checkBySorting(guess, answer) {
 function* checkAnswer(guess) {
 	var scrubbedGuess, vowels, correct,
 		matchesGuess, matchesAnswer,
-		feedbackIdx, resetFn;
+		feedbackIdx, resetFn,
+		record;
 
 	if (state.mode == mode.ACTIVE) {
 		correct = false;
@@ -180,10 +188,20 @@ function* checkAnswer(guess) {
 			}
 		}
 
+		record = records[this.sender.id];
+
 		if (correct) {
 			scores[this.sender.id] = (scores[this.sender.id] ? scores[this.sender.id] : 0) + state.value;
 			names[this.sender.id] = this.sender.name;
-			yield this.roomClient.sendNotification(this.sender.name + ' is correct! Current winnings: $' + scores[this.sender.id] + '<br />'
+
+			if (!record) {
+				record = records[this.sender.id] = { made: 1, attempts: 1 };
+			} else {
+				record.made++;
+				record.attempts++;
+			}
+
+			yield this.roomClient.sendNotification(this.sender.name + ' is correct! $' + scores[this.sender.id] + ' | ' + record.made + ' for ' + record.attempts + '<br />'
 											+ 'Answer: <b>' + state.answer + '</b>', {notify: true, color: 'green'});
 			resetFn = reset.bind(this);
 			yield* resetFn();
@@ -194,8 +212,17 @@ function* checkAnswer(guess) {
 				});
 				return;
 			}
+
+			scores[this.sender.id] = (scores[this.sender.id] ? scores[this.sender.id] : 0) - state.value*incorrectWeight;
+
+			if (!record) {
+				record = records[this.sender.id] = { made: 0, attempts: 1 };
+			} else {
+				record.attempts++;
+			}
+
 			feedbackIdx = Math.floor(Math.random()*feedbackMsgs.length);
-			yield this.roomClient.sendNotification(this.sender.name + ': ' + feedbackMsgs[feedbackIdx], {
+			yield this.roomClient.sendNotification(this.sender.name + ': ' + feedbackMsgs[feedbackIdx] + ' ' + (scores[this.sender.id] < 0 ? '-' : '') + '$' + Math.abs(scores[this.sender.id]) + ' | ' + record.made + ' for ' + record.attempts, {
 				color: 'red',
 				message_format: 'text'
 			});
