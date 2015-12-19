@@ -201,7 +201,7 @@ function* checkAnswer(guess) {
 				record.attempts++;
 			}
 
-			yield this.roomClient.sendNotification(this.sender.name + ' is correct! $' + scores[this.sender.id] + ' | ' + record.made + ' for ' + record.attempts + '<br />'
+			yield this.roomClient.sendNotification(this.sender.name + ' is correct! ' + generateScore(this.sender.id) + '<br />'
 											+ 'Answer: <b>' + state.answer + '</b>', {notify: true, color: 'green'});
 			resetFn = reset.bind(this);
 			yield* resetFn();
@@ -222,7 +222,7 @@ function* checkAnswer(guess) {
 			}
 
 			feedbackIdx = Math.floor(Math.random()*feedbackMsgs.length);
-			yield this.roomClient.sendNotification(this.sender.name + ': ' + feedbackMsgs[feedbackIdx] + ' ' + (scores[this.sender.id] < 0 ? '-' : '') + '$' + Math.abs(scores[this.sender.id]) + ' | ' + record.made + ' for ' + record.attempts, {
+			yield this.roomClient.sendNotification(this.sender.name + ': ' + feedbackMsgs[feedbackIdx] + ' ' + generateScore(this.sender.id), {
 				color: 'red',
 				message_format: 'text'
 			});
@@ -241,9 +241,16 @@ function* showWinnings() {
 	winnings = Object.keys(scores).sort(function (a,b) { return scores[b] - scores[a]; });
 	for (idx = 0; idx < winnings.length; idx++) {
 		id = winnings[idx];
-		msg += '$' + scores[id] + ': ' + names[id] + '<br />';
+		msg +=  names[id] + ' ' + generateScore(id) + '<br />';
 	}
 	yield this.roomClient.sendNotification(msg);
+}
+
+function generateScore(id) {
+	var score = scores[id],
+		record = records[id];
+
+	return '(' + (score < 0 ? '-' : '') + '$' + Math.abs(score) + ' | ' +  record.made + ' for ' + record.attempts + ')';
 }
 
 addon.webhook('room_message', /^\/(trivia|t|a|ans|answer)(?:$|\s)(?:(.+))?/, function *() {
