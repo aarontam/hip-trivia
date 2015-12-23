@@ -1,6 +1,8 @@
 # Hip Trivia
 A trivia plugin, for HipChat, that utilizes the Jeopardy API located at http://jservice.io.
 
+<img src="http://aarontam.github.io/images/hip-trivia.png" width="50%" height="50%" />
+
 # How to install
 This can be run as a HipChat add-on that is hosted on a machine. To do so, you can follow the instructions provided by HipChat here: https://bitbucket.org/atlassianlabs/ac-koa-hipchat/wiki/Getting_Started.
 
