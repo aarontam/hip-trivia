@@ -17,7 +17,7 @@
     "tunnel": "./ngrok http 3000"
   },
   "development": {
-    "localBaseUrl" : "https://a0039d4d.ngrok.io",
+    "localBaseUrl": "https://0a8f1e7d.ngrok.io",
     "port": 3000
   },
   "production": {
@@ -29,5 +29,8 @@
     "ac-koa": "^0.2.6",
     "ac-koa-hipchat": "^0.2.14",
     "co-request": "^0.2.0"
+  },
+  "devDependencies": {
+    "mocha": "^2.3.4"
   }
 }
