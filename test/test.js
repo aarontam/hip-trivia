@@ -51,6 +51,14 @@ describe('Text manipulation', function() {
 
 	});
 
+	describe('Answer matching', function () {
+
+		it('should match complex answers with punctuation, articles, and parentheses', function () {
+			assert.equal(utils.scrubAnswer('<i>E.T. (The Extra-Terrestrial)</i>'), utils.scrubAnswer('ET'));
+		});
+
+	});
+
 	describe('Alternate answer parsing', function () {
 
 		it('should parse parenthesized term', function () {
