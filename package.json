@@ -28,7 +28,8 @@
   "dependencies": {
     "ac-koa": "^0.2.6",
     "ac-koa-hipchat": "^0.2.14",
-    "co-request": "^0.2.0"
+    "co-request": "^0.2.0",
+    "jsonfile": "^2.2.3"
   },
   "devDependencies": {
     "mocha": "^2.3.4"
