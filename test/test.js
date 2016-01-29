@@ -37,6 +37,10 @@ describe('Text manipulation', function() {
 			assert.equal(utils.scrubAnswer('time (and date)'), 'TIME');
 		});
 
+		it('should remove terms in parentheses located between words', function () {
+			assert.equal(utils.scrubAnswer('the (best) time'), 'TIME');
+		});
+
 		it('should remove dashes', function () {
 			assert.equal(utils.scrubAnswer('time-to-live'), 'TIMETOLIVE');
 		});
@@ -95,6 +99,14 @@ describe('Text manipulation', function() {
 
 		it('should ignore alternate answer separator that appears in another term', function () {
 			assert.equal(utils.parseAlternate('for that'), '');
+		});
+
+		it('should ignore tags', function () {
+			assert.equal(utils.parseAlternate('<i>this</i>'), '');
+		});
+
+		it('should ignore unicode', function () {
+			assert.equal(utils.parseAlternate('\u003C\i\u003Ethis\u003C\/i\u003E'), '');
 		});
 
 	});
