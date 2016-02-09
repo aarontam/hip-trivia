@@ -53,12 +53,32 @@ describe('Text manipulation', function() {
 			assert.equal(utils.scrubAnswer('time-and-a-half'), 'TIMEHALF');
 		});
 
+		it('should remove articles located inside formatting', function () {
+			assert.equal(utils.scrubAnswer('<i>The Land Before Time</i>'), 'LANDBEFORETIME');
+		});
+
+		it('should remove the alternate term', function () {
+			assert.equal(utils.scrubAnswer('time or money'), 'TIME');
+		});
+
+		it('should ignore alternate answer separator that appears in another term', function () {
+			assert.equal(utils.scrubAnswer('trade your time for my money'), 'TRADEYOURTIMEFORMYMONEY');
+		});
+
+		it('should remove the alternate term, including the article', function () {
+			assert.equal(utils.scrubAnswer('time or the money'), 'TIME');
+		});
+
 	});
 
 	describe('Answer matching', function () {
 
 		it('should match complex answers with punctuation, articles, and parentheses', function () {
 			assert.equal(utils.scrubAnswer('<i>E.T. (The Extra-Terrestrial)</i>'), utils.scrubAnswer('ET'));
+		});
+
+		it('should only remove actual article words located inside formatting', function () {
+			assert.equal(utils.scrubAnswer('<i>When a Man Loves a Woman</i>'), 'WHENMANLOVESWOMAN');
 		});
 
 	});
