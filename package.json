@@ -2,7 +2,7 @@
   "name": "hip-trivia",
   "displayName": "Trebek",
   "description": "Trivia for HipChat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Aaron Tam",
     "url": "https://github.com/aarontam/hip-trivia"

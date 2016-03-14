@@ -69,6 +69,10 @@ describe('Text manipulation', function() {
 			assert.equal(utils.scrubAnswer('time or the money'), 'TIME');
 		});
 
+		it('should remove articles that are adjacent to quotes', function () {
+			assert.equal(utils.scrubAnswer('"The Time Traveler"'), 'TIMETRAVELER');
+		});
+
 	});
 
 	describe('Answer matching', function () {
