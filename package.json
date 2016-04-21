@@ -17,7 +17,7 @@
     "tunnel": "./ngrok http 3000"
   },
   "development": {
-    "localBaseUrl": "https://0a8f1e7d.ngrok.io",
+    "localBaseUrl": "",
     "port": 3000
   },
   "production": {
